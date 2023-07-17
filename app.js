@@ -40,114 +40,60 @@ async function hashPassword(password) {
   }
 
 
-// app.post('/register', async (req, res) => {
-//     const { email, password } = req.body;
-
-//     // Validate the request body
-//     if (!email || !password) {
-//         return res.status(400).json({ error: 'Missing required fields' });
-//     }
-
-//     // Connect to the MySQL database
-//     const connection = mysql.createConnection(process.env.DATABASE_URL);
-
-//     // Check if the user already exists
-//     connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
-//         if (err) {
-//             connection.end();
-//             return res.status(500).json({ error: 'Failed to check user existence' });
-//         }
-
-//         if (results.length > 0) {
-//             connection.end();
-//             return res.status(409).json({ error: 'User already exists' });
-//         }
-
-//         // User does not exist, create a new entry
-//         const user = { email, password };
-
-//         // hashing the password 
-//         const saltRounds = 10; // Number of salt rounds for bcrypt
-
-//         // Hash the password
-
-//         const hashedPassword = await hashPassword(password);
-//         console.log(hashedPassword);    
-//         const user1 ={email, hashedPassword};
-
-
-//         connection.query('INSERT INTO users SET ?', user1, (err, results) => {
-//             if (err) {
-//                 connection.end();
-//                 return res.status(500).json({ error: 'Failed to create user' });
-//             }
-
-//             connection.end();
-//         });
-//     });
-// });
-
 app.post('/register', async (req, res) => {
     const { email, password } = req.body;
-  
+
     // Validate the request body
     if (!email || !password) {
-      return res.status(400).json({ error: 'Missing required fields' });
+        return res.status(400).json({ error: 'Missing required fields' });
     }
-  
-    try {
-      // Connect to the MySQL database
-      const connection = mysql.createConnection(process.env.DATABASE_URL);
-  
-      // Check if the user already exists
-      const checkUserExists = () => {
-        return new Promise((resolve, reject) => {
-          connection.query('SELECT * FROM users WHERE email = ?', [email], (err, results) => {
-            if (err) {
-              connection.end();
-              reject(err);
-            } else {
-              resolve(results);
-            }
-          });
-        });
-      };
-  
-      const results = await checkUserExists();
-  
-      if (results.length > 0) {
+
+    // Connect to the MySQL database
+    const connection = mysql.createConnection(process.env.DATABASE_URL);
+
+    // Check if the user already exists
+    connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
+        if (err) {
+            connection.end();
+            return res.status(500).json({ error: 'Failed to check user existence' });
+        }
+
+        if (results.length > 0) {
+            connection.end();
+            return res.status(409).json({ error: 'User already exists' });
+        }
+    });
+
+    // User does not exist, create a new entry
+    const user = { email, password };
+
+    // hashing the password 
+    const saltRounds = 10; // Number of salt rounds for bcrypt
+
+    // Hash the password
+
+
+    const hashedPassword = await hashPassword(password);
+    console.log(hashedPassword);    
+    // password = hashPassword
+    const user1 ={email: email, password: hashedPassword};
+
+
+    connection.query('INSERT INTO users SET ?', user1, (err, results) => {
+        if (err) {
+            // connection.end();
+            console.log(err);
+            return res.status(500).json({ error: 'Failed to create user' });
+            // connection.end();
+
+        }
+
         connection.end();
-        return res.status(409).json({ error: 'User already exists' });
-      }
-  
-      // User does not exist, create a new entry
-      const saltRounds = 10;
-      const hashedPassword = await hashPassword(password);
-      const user = { email, hashedPassword };
-  
-      const insertUser = () => {
-        return new Promise((resolve, reject) => {
-          connection.query('INSERT INTO users SET ?', user, (err, results) => {
-            if (err) {
-              connection.end();
-              reject(err);
-            } else {
-              resolve();
-            }
-          });
-        });
-      };
-  
-      await insertUser();
-      connection.end();
-  
-      return res.status(200).json({ message: 'User registered successfully' });
-    } catch (error) {
-      console.error('Error creating user:', error);
-      return res.status(500).json({ error: 'Failed to create user' });
-    }
-  });
-  
+    });
+
+    return res.status(200).json({ error: 'User registered Successfully ' });
+
+});
 
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
@@ -162,6 +108,7 @@ app.post('/login', (req, res) => {
 
     // Check if the user exists
     connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
+
         if (err) {
             connection.end();
             return res.status(500).json({ error: 'Internal Server Error' });
@@ -172,13 +119,16 @@ app.post('/login', (req, res) => {
             return res.status(404).json({ error: 'User not found. Please sign up.' });
         }
 
+
         const user = results[0];
+        console.log(user.uid);
+
 
         const passwordMatches = bcrypt.compare(password, user.password);
 
         if (passwordMatches) {
             const jwtSecretKey = crypto.randomBytes(32).toString('hex');
-            const token = jwt.sign({ userId: getUserId(email) },jwtSecretKey, { expiresIn: '1h' });
+            const token = jwt.sign({ userId: user.uid },jwtSecretKey, { expiresIn: '1h' });
             console.log(jwtSecretKey);
             return res.status(200).json({ message: 'Login successful', token });
             
@@ -333,7 +283,7 @@ function getUserIdFromDatabase(email) {
 
 
 
-app.post('/verify-otp', (req, res) => {
+app.post('/verifyOTP', (req, res) => {
     const { email, otp } = req.body;
 
     // Connect to the MySQL database
@@ -358,44 +308,32 @@ app.post('/verify-otp', (req, res) => {
         if (new Date() > expirationTime) {
             return res.status(401).json({ error: 'OTP has expired' });
         }
-
-        // OTP verification successful
-        // You can update the user's 'isVerified' field in the database to mark them as verified
-        // Replace the code inside this block with your actual logic for updating the 'isVerified' field
-
         updateUserVerificationStatusInDatabase(email); // Replace this with your database update logic
         deleteOTPFromDatabase(email, otp);
+        // Check if the user exists
+        connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
 
-        // Return a success response
-        // Generate a JWT token
-
-        async function getUserId(email) {
-            try {
-                const userID = await getUserIdFromDatabase(email);
-                if (userID) {
-                    console.log('userID:', userID);
-                    // Use the userID as needed
-                } else {
-                    console.log('No user found with the given email');
-                    // Handle the case where no user is found
-                }
-            } catch (err) {
-                console.error('Error retrieving userID:', err);
-                // Handle the error
+            if (err) {
+                connection.end();
+                return res.status(500).json({ error: 'Internal Server Error' });
             }
-        }
 
-        const jwtSecretKey = crypto.randomBytes(32).toString('hex');
+            if (results.length === 0) {
+                connection.end();
+                return res.status(404).json({ error: 'User not found. Please sign up.' });
+            }
 
 
-
-        const token = jwt.sign({ userId: getUserId(email) },jwtSecretKey, { expiresIn: '1h' });
-        console.log(jwtSecretKey);
-        return res.status(200).json({ message: 'OTP verification successful', token });
+            const user = results[0];
+            console.log(user.uid);
+            const jwtSecretKey = crypto.randomBytes(32).toString('hex');
+            const token = jwt.sign({ userId: user.uid },jwtSecretKey, { expiresIn: '1h' });
+            console.log(jwtSecretKey);
+            return res.status(200).json({ message: 'Verification successful', token });
+        });
+        connection.end();
     });
 
-    // Close the database connection
-    connection.end();
 });
 
 
