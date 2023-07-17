@@ -7,10 +7,15 @@ const mysql = require('mysql2');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 dotenv.config({ path: '../.env' });
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require('twilio')(accountSid, authToken);
 
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+
 
 const connection = mysql.createConnection(process.env.DATABASE_URL);
 
@@ -150,7 +155,7 @@ const transporter = nodemailer.createTransport({
     debug: true,
     auth: {
         user: 'ritvikpendyala19@gmail.com',
-        pass: 'vzojneymqtjpfbfr',
+        pass: process.env.PASS,
     },
 });
 
@@ -336,11 +341,27 @@ app.post('/verifyOTP', (req, res) => {
 
 });
 
-
-
-
-
-
+app.post('/loginWithOTP', async (req, res) => {
+    const { phoneNumber } = req.body;
+  
+    try {
+      // Generate a random 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000);
+  
+      // Send the OTP via SMS
+      await client.messages.create({
+        body: `The OTP to authenticate yourself to Pendi is: ${otp}`,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: phoneNumber
+      });
+  
+      return res.status(200).json({ message: 'OTP sent successfully' });
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      return res.status(500).json({ error: 'Failed to send OTP' });
+    }
+  });
+  
 
 app.listen(6969, () => {
     console.log("Server started on 6969...")
