@@ -100,50 +100,107 @@ app.post('/register', async (req, res) => {
 
 });
 
-app.post('/login', (req, res) => {
-    const { email, password } = req.body;
+// app.post('/login', (req, res)=> {
+//     const { email, password } = req.body;
 
+//     // Validate the request body
+//     if (!email || !password) {
+//         return res.status(400).json({ error: 'Missing required fields' });
+//     }
+
+//     // Connect to the MySQL database
+//     const connection = mysql.createConnection(process.env.DATABASE_URL);
+
+//     // Check if the user exists
+//     connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
+
+//         if (err) {
+//             connection.end();
+//             return res.status(500).json({ error: 'Internal Server Error' });
+//         }
+
+//         if (results.length === 0) {
+//             connection.end();
+//             return res.status(404).json({ error: 'User not found. Please sign up.' });
+//         }
+
+//         console.log("Debugging output starts here");
+//         const user = results[0];
+//         console.log(results);
+//         console.log(user.uid);
+//         console.log(password);
+//         const newpassword  =bcrypt.hash(password, 10);
+//         console.log(newpassword);
+//         console.log(user.password);
+//         console.log( bcrypt.compare(password, user.password));
+        
+//         console.log("Debugging output ends here");
+
+
+//         const passwordMatches = bcrypt.compare(password, user.password);
+//         console.log(passwordMatches);
+
+//         if (passwordMatches) {
+//             const jwtSecretKey = crypto.randomBytes(32).toString('hex');
+//             const token = jwt.sign({ userId: user.uid },jwtSecretKey, { expiresIn: '1h' });
+//             console.log(jwtSecretKey);
+//             return res.status(200).json({ message: 'Login successful', token });
+            
+//         } 
+//         else {
+//             connection.end();
+//             return res.status(401).json({ error: 'Invalid credentials' });
+//         }
+//     });
+// });
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+  
     // Validate the request body
     if (!email || !password) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
-
+  
     // Connect to the MySQL database
     const connection = mysql.createConnection(process.env.DATABASE_URL);
-
-    // Check if the user exists
-    connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
-
-        if (err) {
-            connection.end();
-            return res.status(500).json({ error: 'Internal Server Error' });
-        }
-
-        if (results.length === 0) {
-            connection.end();
-            return res.status(404).json({ error: 'User not found. Please sign up.' });
-        }
-
-
-        const user = results[0];
-        console.log(user.uid);
-
-
-        const passwordMatches = bcrypt.compare(password, user.password);
-
-        if (passwordMatches) {
-            const jwtSecretKey = crypto.randomBytes(32).toString('hex');
-            const token = jwt.sign({ userId: user.uid },jwtSecretKey, { expiresIn: '1h' });
-            console.log(jwtSecretKey);
-            return res.status(200).json({ message: 'Login successful', token });
-            
-        } 
-        else {
-            connection.end();
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
-    });
-});
+  
+    try {
+      // Check if the user exists
+      const results = await new Promise((resolve, reject) => {
+        connection.query('SELECT * FROM users WHERE email = ?', email, (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        });
+      });
+  
+      if (results.length === 0) {
+        return res.status(404).json({ error: 'User not found. Please sign up.' });
+      }
+  
+      const user = results[0];
+  
+      // Compare the provided password with the hashed password stored in the database
+      const passwordMatches = await bcrypt.compare(password, user.password);
+  
+      if (passwordMatches) {
+        const jwtSecretKey = crypto.randomBytes(32).toString('hex');
+        const token = jwt.sign({ userId: user.uid }, jwtSecretKey, { expiresIn: '1h' });
+  
+        return res.status(200).json({ message: 'Login successful', token });
+      } else {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    } finally {
+      connection.end(); // Make sure to close the connection after use
+    }
+  });
 
 
 const nodemailer = require('nodemailer');
@@ -366,3 +423,8 @@ app.post('/loginWithOTP', async (req, res) => {
 app.listen(6969, () => {
     console.log("Server started on 6969...")
 });
+
+
+// Alarm stuff
+
+
